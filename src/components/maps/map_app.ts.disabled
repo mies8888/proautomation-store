@@ -1,0 +1,276 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import {Loader} from '@googlemaps/js-api-loader';
+import {html, LitElement, PropertyValueMap} from 'lit';
+import {customElement, query, state} from 'lit/decorators.js';
+// import {classMap} from 'lit/directives/class-map'; // TODO: Fix module resolution
+
+export interface MapParams {
+  location?: string;
+  origin?: string;
+  destination?: string;
+}
+
+export const marked = {
+  parse: (text: string) => text
+};
+
+const ICON_BUSY = html`<svg class="rotating" xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor"><path d="M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 31.5-155.5t86-127Q252-817 325-848.5T480-880q17 0 28.5 11.5T520-840q0 17-11.5 28.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160q133 0 226.5-93.5T800-480q0-17 11.5-28.5T840-520q17 0 28.5 11.5T880-480q0 82-31.5 155t-86 127.5q-54.5 54.5-127 86T480-80Z" /></svg>`;
+
+export enum ChatState {
+  IDLE,
+  GENERATING,
+  THINKING,
+  EXECUTING,
+}
+
+enum ChatTab {
+  GEMINI,
+}
+
+export enum ChatRole {
+  USER,
+  ASSISTANT,
+  SYSTEM,
+}
+
+const USER_PROVIDED_GOOGLE_MAPS_API_KEY: string = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyAJPTwj4S8isr4b-3NtqVSxk450IAS1lOQ';
+
+const EXAMPLE_PROMPTS = [
+  "Show me directions from Tokyo Tower to Shibuya Crossing.",
+  "Can you show me a beautiful beach?",
+  "Show me San Francisco"
+];
+
+@customElement('gdm-map-app')
+export class MapApp extends LitElement {
+  @query('#anchor') anchor?: HTMLDivElement;
+  @query('#mapContainer') mapContainerElement?: HTMLElement;
+  @query('#messageInput') messageInputElement?: HTMLInputElement;
+
+  @state() chatState = ChatState.IDLE;
+  @state() isRunning = true;
+  @state() selectedChatTab = ChatTab.GEMINI;
+  @state() inputMessage = '';
+  @state() messages: HTMLElement[] = [];
+  @state() mapInitialized = false;
+  @state() mapError = '';
+
+  private map?: any;
+  private geocoder?: any;
+  private marker?: any;
+
+  private Map3DElement?: any;
+  private Marker3DElement?: any;
+  private Polyline3DElement?: any;
+
+  private directionsService?: any;
+  private routePolyline?: any;
+  private originMarker?: any;
+  private destinationMarker?: any;
+
+  sendMessageHandler?: CallableFunction;
+
+  constructor() {
+    super();
+    this.setNewRandomPrompt();
+  }
+
+  createRenderRoot() {
+    return this;
+  }
+
+  protected firstUpdated(
+    _changedProperties: PropertyValueMap<any> | Map<PropertyKey, unknown>,
+  ): void {
+    this.loadMap();
+  }
+
+  private setNewRandomPrompt() {
+    if (EXAMPLE_PROMPTS.length > 0) {
+      this.inputMessage = EXAMPLE_PROMPTS[0];
+    }
+  }
+
+  async loadMap() {
+    const loader = new Loader({
+      apiKey: USER_PROVIDED_GOOGLE_MAPS_API_KEY,
+      version: 'beta',
+      libraries: ['geocoding', 'routes', 'geometry'],
+    });
+
+    try {
+      await loader.load();
+      const maps3dLibrary = await (window as any).google.maps.importLibrary('maps3d');
+      this.Map3DElement = maps3dLibrary.Map3DElement;
+      this.Marker3DElement = maps3dLibrary.Marker3DElement;
+      this.Polyline3DElement = maps3dLibrary.Polyline3DElement;
+
+      if ((window as any).google && (window as any).google.maps) {
+        this.directionsService = new (window as any).google.maps.DirectionsService();
+      } else {
+        console.error('DirectionsService not loaded.');
+      }
+
+      this.initializeMap();
+      this.mapInitialized = true;
+      this.mapError = '';
+    } catch (error) {
+      console.error('Error loading Google Maps API:', error);
+      this.mapError = 'Could not load Google Maps.';
+      this.mapInitialized = false;
+    }
+    this.requestUpdate();
+  }
+
+  initializeMap() {
+    if (!this.mapContainerElement || !this.Map3DElement) return;
+    this.map = this.mapContainerElement;
+    if ((window as any).google && (window as any).google.maps) {
+      this.geocoder = new (window as any).google.maps.Geocoder();
+    }
+  }
+
+  setChatState(state: ChatState) {
+    this.chatState = state;
+  }
+
+  private _clearMapElements() {
+    if (this.marker) { this.marker.remove(); this.marker = undefined; }
+    if (this.routePolyline) { this.routePolyline.remove(); this.routePolyline = undefined; }
+    if (this.originMarker) { this.originMarker.remove(); this.originMarker = undefined; }
+    if (this.destinationMarker) { this.destinationMarker.remove(); this.destinationMarker = undefined; }
+  }
+
+  private async _handleViewLocation(locationQuery: string) {
+    if (!this.mapInitialized || !this.map || !this.geocoder || !this.Marker3DElement) return;
+    this._clearMapElements();
+
+    this.geocoder.geocode({address: locationQuery}, async (results: any, status: string) => {
+      if (status === 'OK' && results && results[0] && this.map) {
+        const location = results[0].geometry.location;
+        const cameraOptions = {
+          center: {lat: location.lat(), lng: location.lng(), altitude: 0},
+          heading: 0, tilt: 67.5, range: 2000,
+        };
+        (this.map as any).flyCameraTo({endCamera: cameraOptions, durationMillis: 1500});
+
+        this.marker = new this.Marker3DElement();
+        this.marker.position = {lat: location.lat(), lng: location.lng(), altitude: 0};
+        this.marker.label = locationQuery.substring(0, 27);
+        (this.map as any).appendChild(this.marker);
+      }
+    });
+  }
+
+  private async _handleDirections(originQuery: string, destinationQuery: string) {
+    if (!this.mapInitialized || !this.map || !this.directionsService || !this.Marker3DElement || !this.Polyline3DElement) return;
+    this._clearMapElements();
+
+    this.directionsService.route(
+      {origin: originQuery, destination: destinationQuery, travelMode: (window as any).google.maps.TravelMode.DRIVING},
+      async (response: any, status: string) => {
+        if (status === 'OK' && response && response.routes && response.routes.length > 0) {
+          const route = response.routes[0];
+          if (route.overview_path && this.Polyline3DElement) {
+            const pathCoordinates = route.overview_path.map((p: any) => ({lat: p.lat(), lng: p.lng(), altitude: 5}));
+            this.routePolyline = new this.Polyline3DElement();
+            this.routePolyline.coordinates = pathCoordinates;
+            this.routePolyline.strokeColor = 'blue';
+            this.routePolyline.strokeWidth = 10;
+            (this.map as any).appendChild(this.routePolyline);
+          }
+        }
+      }
+    );
+  }
+
+  async handleMapQuery(params: MapParams) {
+    if (params.location) {
+      this._handleViewLocation(params.location);
+    } else if (params.origin && params.destination) {
+      this._handleDirections(params.origin, params.destination);
+    } else if (params.destination) {
+      this._handleViewLocation(params.destination);
+    }
+  }
+
+  setInputField(message: string) {
+    this.inputMessage = message.trim();
+  }
+
+  addMessage(role: string, message: string) {
+    const div = document.createElement('div');
+    div.classList.add('turn');
+    div.classList.add(`role-${role.trim()}`);
+    
+    const thinkingDetails = document.createElement('details');
+    thinkingDetails.classList.add('thinking');
+    const thinkingElement = document.createElement('div');
+    thinkingDetails.append(thinkingElement);
+    div.append(thinkingDetails);
+
+    const textElement = document.createElement('div');
+    textElement.className = 'text';
+    textElement.innerHTML = message;
+    div.append(textElement);
+
+    this.messages = [...this.messages, div];
+    this.scrollToTheEnd();
+    return { thinkingContainer: thinkingDetails, thinkingElement: thinkingElement, textElement: textElement };
+  }
+
+  scrollToTheEnd() {
+    if (this.anchor) this.anchor.scrollIntoView({behavior: 'smooth', block: 'end'});
+  }
+
+  async sendMessageAction(message?: string, role?: string) {
+    if (this.chatState !== ChatState.IDLE) return;
+    let msg = message ? message.trim() : this.inputMessage.trim();
+    if (!message && msg.length > 0) this.inputMessage = '';
+    if (msg.length === 0) return;
+
+    const msgRole = role ? role.toLowerCase() : 'user';
+    if (msgRole === 'user' && msg) {
+      const {textElement} = this.addMessage(msgRole, '...');
+      textElement.innerHTML = await marked.parse(msg);
+    }
+
+    if (this.sendMessageHandler) {
+      await this.sendMessageHandler(msg, msgRole);
+    }
+  }
+
+  private async inputKeyDownAction(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      this.sendMessageAction();
+    }
+  }
+
+  render() {
+    return html`<div class="gdm-map-app">
+      <div class="main-container" role="application">
+        ${this.mapError ? html`<div class="map-error-message">${this.mapError}</div>` : ''}
+        <gmp-map-3d id="mapContainer" style="height: 100%; width: 100%;" mode="hybrid" center="0,0,100" heading="0" tilt="45" range="20000000" default-ui-disabled="true"></gmp-map-3d>
+      </div>
+      <div class="sidebar">
+        <div id="chat-panel" class="tabcontent showtab">
+          <div class="chat-messages">${this.messages}<div id="anchor"></div></div>
+          <div class="footer">
+            <div id="chatStatus" class=${classMap({'hidden': this.chatState === ChatState.IDLE})}>
+              ${this.chatState !== ChatState.IDLE ? html`${ICON_BUSY} Processing...` : html``}
+            </div>
+            <div id="inputArea">
+              <input type="text" id="messageInput" .value=${this.inputMessage} @input=${(e: any) => this.inputMessage = e.target.value} @keydown=${(e: any) => this.inputKeyDownAction(e)} />
+              <button id="sendButton" @click=${() => this.sendMessageAction()} ?disabled=${this.chatState !== ChatState.IDLE}>Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+}

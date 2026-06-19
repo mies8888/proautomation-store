@@ -1,0 +1,9 @@
+@echo off
+echo Killing port 3000...
+call npx -y kill-port 3000
+
+echo Deleting cache...
+rmdir /s /q .next
+
+echo Starting server natively...
+start cmd.exe /k "title NEXT_JS_SERVER && npm run dev"

@@ -1,0 +1,193 @@
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/db/prisma'
+import { redirect } from 'next/navigation'
+
+export const dynamic = 'force-dynamic'
+
+interface PageProps {
+  searchParams: {
+    leadId?: string
+    templateId?: string
+  }
+}
+
+export default async function EmailComposerPage({ searchParams }: PageProps) {
+  const session = await auth()
+  if (!session?.user?.id) {
+    redirect('/login')
+  }
+
+  const { leadId, templateId } = searchParams
+
+  let lead = null
+  if (leadId) {
+    lead = await prisma.lead.findUnique({
+      where: { id: leadId }
+    })
+
+    if (!lead || lead.ownerUserId !== session.user.id) {
+      redirect('/leads')
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold">Compose Email</h1>
+        {lead && (
+          <p className="text-gray-600 mt-2">
+            Sending to <span className="font-semibold">{lead.companyName}</span>
+            {lead.contactEmail && ` (${lead.contactEmail})`}
+          </p>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Templates Sidebar */}
+        <div className="md:col-span-1">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 sticky top-4">
+            <h2 className="font-semibold text-lg mb-4">Templates</h2>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="text-sm text-gray-600 mb-3">Quick templates</div>
+              {[
+                { id: 'cold_outreach', name: 'Cold Outreach' },
+                { id: 'follow_up', name: 'Follow Up' },
+                { id: 'demo_request', name: 'Demo Request' },
+                { id: 'problem_aware', name: 'Problem Aware' },
+                { id: 'case_study', name: 'Case Study' },
+                { id: 'proposal', name: 'Proposal' }
+              ].map(template => (
+                <button
+                  key={template.id}
+                  className={`w-full text-left px-3 py-2 rounded text-sm transition ${
+                    templateId === template.id
+                      ? 'bg-blue-100 text-blue-900 font-medium'
+                      : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                  onClick={() => {
+                    // This would be handled by JavaScript in real app
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('templateId', template.id)
+                    window.history.pushState({}, '', url)
+                  }}
+                >
+                  {template.name}
+                </button>
+              ))}
+            </div>
+            <button className="w-full mt-4 px-3 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 transition">
+              + New Template
+            </button>
+          </div>
+        </div>
+
+        {/* Composer */}
+        <div className="md:col-span-3 space-y-4">
+          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+            {/* Recipient */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">To</label>
+              <input
+                type="email"
+                placeholder={lead?.contactEmail || 'recipient@example.com'}
+                defaultValue={lead?.contactEmail || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* CC */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">CC (Optional)</label>
+              <input
+                type="email"
+                placeholder="cc@example.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Subject</label>
+              <input
+                type="text"
+                placeholder="Email subject"
+                defaultValue={templateId ? 'Quick opportunity for {{companyName}}' : ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Use {{companyName}}, {{contactName}}, {{service}} etc.</p>
+            </div>
+
+            {/* Body */}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">Message</label>
+              <textarea
+                placeholder="Your email message..."
+                rows={12}
+                defaultValue={
+                  templateId
+                    ? `Hi {{contactName}},
+
+I was impressed by {{companyName}}'s work in {{industry}} and think I might be able to help you with {{service}}.
+
+{{benefit}}
+
+Would you be open to a brief conversation?
+
+Best regards,
+{{senderName}}`
+                    : ''
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Available variables: companyName, contactName, service, benefit, industry, senderName
+              </p>
+            </div>
+
+            {/* Preview */}
+            <div className="bg-gray-50 p-4 rounded border border-gray-200">
+              <h3 className="text-sm font-semibold mb-2">Preview (with sample data)</h3>
+              <div className="bg-white p-3 rounded text-sm space-y-2 border border-gray-200">
+                <div><strong>To:</strong> john@acme.com</div>
+                <div><strong>Subject:</strong> Quick opportunity for Acme Corp</div>
+                <div className="pt-2 text-gray-700">
+                  Hi John,<br /><br />
+                  I was impressed by Acme Corps work in Technology and think I might be able to help you with Lead Generation.<br /><br />
+                  We help companies like yours increase sales by 40%.<br /><br />
+                  Would you be open to a brief conversation?<br /><br />
+                  Best regards,<br />
+                  Sales Team
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button className="px-4 py-2 bg-gray-200 text-gray-900 rounded-lg text-sm font-medium hover:bg-gray-300 transition">
+                Save as Draft
+              </button>
+              <button className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition">
+                Schedule Send
+              </button>
+              <button className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">
+                Send Now
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Emails for this Lead */}
+          {lead && (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="font-semibold mb-4">Conversation History</h3>
+              <div className="space-y-3 max-h-40 overflow-y-auto">
+                <div className="text-sm text-gray-500 text-center py-8">
+                  No previous emails with this lead
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

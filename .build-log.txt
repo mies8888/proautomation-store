@@ -1,0 +1,33 @@
+﻿
+> proautomation-store@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.2.7 (Turbopack)
+- Environments: .env
+
+node.exe : ÔÜá The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.o
+rg/docs/messages/middleware-to-proxy
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ÔÜá The "middle...leware-to-proxy:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 15.9s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/(dashboard)/leads/[id]/page.tsx:92:24
+Type error: Property 'action' does not exist on type '{ userAgent: string | null; id: string; description: string | nul
+l; createdAt: Date; userId: string; type: string; leadId: string | null; metadata: JsonValue; ipAddress: string | null;
+ }'.
+
+  [90m90 |[0m                 </span>
+  [90m91 |[0m                 <span className=[32m"font-medium text-slate-800"[0m>
+[31m[1m>[0m [90m92 |[0m                   {log.action.replace([35m/_/g[0m, [32m' '[0m)}
+  [90m   |[0m                        [31m[1m^[0m
+  [90m93 |[0m                 </span>
+  [90m94 |[0m               </div>
+  [90m95 |[0m             ))}
+Next.js build worker exited with code: 1 and signal: null

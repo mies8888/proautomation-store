@@ -1,0 +1,53 @@
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
+
+// Dynamically import the Lit element only on the client
+export default function GodModeMap({ targetLocation }: { targetLocation?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [mapAppRef, setMapAppRef] = useState<any>(null);
+
+  useEffect(() => {
+    async function init() {
+      // Import the lit component dynamically
+      const { MapApp } = await import('./map_app');
+      
+      if (!containerRef.current) return;
+      
+      const mapApp = new MapApp();
+      containerRef.current.innerHTML = '';
+      containerRef.current.appendChild(mapApp);
+
+      // We skip the MCP/Gemini chat integration because the user just wants the cinematic map
+      // We also hide the chat sidebar
+      const style = document.createElement('style');
+      style.textContent = '.sidebar { display: none !important; } .map-container { width: 100% !important; }';
+      document.head.appendChild(style);
+
+      setMapAppRef(mapApp);
+      setIsReady(true);
+    }
+    
+    init();
+
+    return () => {
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isReady && mapAppRef && targetLocation) {
+      // Create a cinematic zoom instruction directly
+      mapAppRef.handleMapQuery({ location: targetLocation });
+    }
+  }, [targetLocation, isReady, mapAppRef]);
+
+  return (
+    <div style={{ width: '100%', height: '100%' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }}></div>
+    </div>
+  );
+}

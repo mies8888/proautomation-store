@@ -1,0 +1,26 @@
+@echo off
+echo Killing old node processes...
+taskkill /F /IM node.exe
+
+echo Restoring schema to postgresql...
+powershell -Command "(Get-Content prisma\schema.prisma) -replace 'provider = \"sqlite\"', 'provider = \"postgresql\"' | Set-Content prisma\schema.prisma"
+
+echo Deleting Next.js cache...
+rmdir /s /q .next
+
+echo Starting Prisma dev invisibly...
+start /b npx prisma dev
+
+echo Waiting 20 seconds for Prisma to provision DB and update .env...
+timeout /t 20 /nobreak
+
+echo Pushing schema...
+call npx prisma db push
+
+echo Seeding database...
+call node seed.js
+
+echo Starting Next.js...
+start /b npm run dev
+
+echo SERVER STARTED!
