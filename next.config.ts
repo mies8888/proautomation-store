@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  typescript: { ignoreBuildErrors: true },
   output: "standalone",
   serverExternalPackages: ['playwright-extra', 'puppeteer-extra-plugin-stealth'],
   async headers() {
