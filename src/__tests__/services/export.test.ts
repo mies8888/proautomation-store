@@ -14,9 +14,9 @@ describe('Export Service', () => {
       ]
       const csv = convertToCSV(data)
       
-      expect(csv).toContain('name,age')
-      expect(csv).toContain('John,30')
-      expect(csv).toContain('Jane,25')
+      expect(csv).toContain('"name","age"')
+      expect(csv).toContain('"John","30"')
+      expect(csv).toContain('"Jane","25"')
     })
 
     it('should escape quotes in CSV values', () => {

@@ -40,9 +40,9 @@ export async function GET(request: NextRequest) {
     ).length
     const closedLeads = leads.filter((l: any) => l.status === 'CLOSED').length
     
-    const allEmails = leads.flatMap((l: any) => l.outreachEmails)
-    const pendingEmails = allEmails.filter((e: any) => e.status === 'DRAFT').length
-    const sentEmails = allEmails.filter((e: any) => e.sentAt !== null).length
+    const allEmails = leads.flatMap((l: any) => l.outreachEmails || [])
+    const pendingEmails = allEmails.filter((e: any) => e && e.status === 'DRAFT').length
+    const sentEmails = allEmails.filter((e: any) => e && e.sentAt !== null).length
 
     // Calculate revenue (sum of credit transactions)
     const totalRevenue = creditTransactions.reduce((sum: number, tx: any) => sum + tx.amount, 0)

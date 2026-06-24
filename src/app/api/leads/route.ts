@@ -38,3 +38,19 @@ export const POST = withErrorHandling(async (req: NextRequest) => {
 
   return NextResponse.json(lead, { status: 201 })
 })
+
+export const GET = withErrorHandling(async (req: NextRequest) => {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const userId = session.user.id
+
+  const leads = await prisma.lead.findMany({
+    where: { ownerUserId: userId },
+    include: { outreachEmails: true, activityLogs: true },
+  })
+
+  return NextResponse.json(leads, { status: 200 })
+})
